@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Access Control • Secure — Enterprise SSO Demo</title>
+  <meta name="description" content="Client-only enterprise SSO flow simulation: Credentials → TOTP MFA → JWT → Redirect. Educational demo; no data leaves your browser." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar" role="banner">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">🔐</span>
+      <div class="titles">
+        <h1 class="site-title">Access Control • Secure — Enterprise SSO Demo</h1>
+        <p class="subtitle">Credentials → MFA → JWT → Redirect (client-only, educational)</p>
+      </div>
+    </div>
+    <nav class="links" aria-label="Primary">
+      <a href="https://asymister.notion.site/Access-Control-Secure-The-IAM-Portfolio-291c2c11a0eb80feabc0db8eeba0c4fc" target="_blank" rel="noopener" class="link">Portfolio</a>
+      <a href="https://github.com/drewsymi" target="_blank" rel="noopener" class="link">GitHub</a>
+      <a href="https://linkedin.com/in/andrewsymister" target="_blank" rel="noopener" class="link">LinkedIn</a>
+      <div class="divider" aria-hidden="true"></div>
+      <label class="toggle" for="dark-toggle">
+        <input id="dark-toggle" type="checkbox" aria-label="Toggle dark mode" />
+        <span>Dark</span>
+      </label>
+      <label for="vendor-theme" class="sr-only">Vendor Theme</label>
+      <select id="vendor-theme" aria-label="Vendor Theme Switcher">
+        <option value="base">Vendor: Base</option>
+        <option value="entra">Microsoft Entra</option>
+        <option value="okta">Okta</option>
+        <option value="ping">Ping Identity</option>
+        <option value="cyberark">CyberArk</option>
+        <option value="beyondtrust">BeyondTrust</option>
+        <option value="duo">Duo</option>
+        <option value="aws">AWS IAM</option>
+        <option value="gcp">Google Cloud IAM</option>
+      </select>
+    </nav>
+  </header>
+
+  <main id="main" class="layout" role="main">
+    <section class="content">
+      <!-- Stepper -->
+      <ol class="stepper" aria-label="Authentication steps">
+        <li class="step active" data-step="1">1) Credentials</li>
+        <li class="step" data-step="2">2) MFA (TOTP)</li>
+        <li class="step" data-step="3">3) JWT Issued</li>
+        <li class="step" data-step="4">4) Redirect</li>
+      </ol>
+
+      <!-- Step 1: Credentials -->
+      <section class="panel" id="step-1" aria-labelledby="step-1-title">
+        <h2 id="step-1-title">Step 1 — Credentials</h2>
+        <form id="form-credentials">
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required autocomplete="username" placeholder="you@example.com" />
+          </div>
+          <div class="field">
+            <label for="password">Password <span class="hint">(8+ chars)</span></label>
+            <input id="password" name="password" type="password" required minlength="8" autocomplete="current-password" />
+          </div>
+          <div class="actions">
+            <button class="btn primary" type="submit">Continue →</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Step 2: MFA (TOTP) -->
+      <section class="panel hidden" id="step-2" aria-labelledby="step-2-title">
+        <h2 id="step-2-title">Step 2 — TOTP (30s window)</h2>
+        <div class="totp-grid">
+          <div class="totp-left">
+            <div class="code-tile" aria-live="polite" aria-atomic="true">
+              <div class="code" id="totp-code">000000</div>
+              <div class="ttl">Refresh in <span id="totp-ttl">30</span>s</div>
+            </div>
+            <div class="qr">
+              <canvas id="qr-canvas" width="180" height="180" aria-label="Mock QR code for TOTP"></canvas>
+            </div>
+          </div>
+          <div class="totp-right">
+            <div class="field">
+              <label>Base32 Secret</label>
+              <code id="totp-secret">JBSWY3DPEHPK3PXP</code>
+            </div>
+            <form id="form-totp">
+              <div class="field">
+                <label for="totp-input">Enter 6‑digit code</label>
+                <input id="totp-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="123456" autocomplete="one-time-code" required />
+              </div>
+              <div class="actions">
+                <button class="btn ghost" type="button" id="back-to-1">← Back</button>
+                <button class="btn primary" type="submit">Verify MFA</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3: JWT Issued -->
+      <section class="panel hidden" id="step-3" aria-labelledby="step-3-title">
+        <h2 id="step-3-title">Step 3 — JWT Issued</h2>
+        <div class="token-actions">
+          <div class="btn-row">
+            <button class="btn primary" id="btn-copy">Copy Token</button>
+            <button class="btn ghost" id="btn-verify">Verify Signature</button>
+            <button class="btn ghost" id="btn-download-token">Download token.json</button>
+            <span id="verify-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+        <pre class="code-surface" id="token-pre" tabindex="0" aria-label="JWT token"></pre>
+
+        <div class="claims-grid">
+          <div class="claims-left">
+            <h3>Decoded Claims</h3>
+            <table class="claims" id="claims-table" aria-describedby="claims-help"></table>
+            <p id="claims-help" class="hint">Array values are shown as badges.</p>
+          </div>
+          <div class="claims-right">
+            <div class="policy-sim">
+              <h3>What‑if Policy Simulator</h3>
+              <form id="form-policy">
+                <div class="field"><label for="policy-aud">Expected aud</label><input id="policy-aud" type="text" /></div>
+                <div class="field checkbox"><label><input id="policy-mfa" type="checkbox" /> Require MFA</label></div>
+                <div class="field"><label for="policy-roles">Minimum roles</label><input id="policy-roles" type="number" min="0" step="1" /></div>
+                <div class="field"><label for="policy-leeway">exp leeway (sec)</label><input id="policy-leeway" type="number" min="0" step="1" /></div>
+                <div class="actions"><button class="btn primary" type="submit">Apply</button></div>
+              </form>
+            </div>
+            <h3>Policy Checks</h3>
+            <ul class="checks" id="policy-checks" aria-live="polite"></ul>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" id="proceed-redirect">Proceed to Redirect →</button>
+        </div>
+      </section>
+
+      <!-- Step 4: Redirect -->
+      <section class="panel hidden" id="step-4" aria-labelledby="step-4-title">
+        <h2 id="step-4-title">Step 4 — Redirect</h2>
+        <p class="success">Redirect success. You are now signed in to the demo application.</p>
+        <div class="actions">
+          <button class="btn ghost" id="restart">Restart Flow</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Supplementary">
+      <div class="card">
+        <h3>Why this matters</h3>
+        <p>
+          Modern enterprises rely on identity: strong auth (MFA), scoped tokens (JWT), least
+          privilege, and auditable actions. This demo visualizes these building blocks end‑to‑end.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Mapped controls</h3>
+        <ul class="bullets">
+          <li>NIST 800‑63: AAL2 MFA (TOTP)</li>
+          <li>ISO/IEC 27001: Access Control, Logging</li>
+          <li>Zero Trust: Continuous evaluation (policy checks)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Audit trail (local)</h3>
+        <pre class="code-surface small" id="audit-pre" tabindex="0" aria-label="Audit log"></pre>
+        <div class="actions">
+          <button class="btn ghost" id="btn-download-audit">Download audit.json</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="footer" role="contentinfo">
+    © 2025 Andrew Symister — IAM & PAM Portfolio (Educational demo; no data leaves your browser).
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
